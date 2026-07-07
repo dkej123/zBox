@@ -4,8 +4,8 @@ Moduł NS (wzmacniacz) i moduł NFC zasilane tylko gdy ESP jest wybudzone. Każd
 tranzystorze. Domyślnie OFF w deep sleep i przy starcie/flashu.
 
 Sterowanie:
-- **NS_EN = GPIO15** (J9.15) — high-side P-FET, **aktywne LOW** (LOW = on).
-- **NFC_EN = GPIO12** (J8.12) — low-side N-FET, **aktywne HIGH** (HIGH = on).
+- **NS_EN = GPIO15** (U1.IO15, pin 31 modułu Lolin_D32_Pro) — high-side P-FET, **aktywne LOW** (LOW = on).
+- **NFC_EN = GPIO12** (U1.IO12, pin 12 modułu Lolin_D32_Pro) — low-side N-FET, **aktywne HIGH** (HIGH = on).
 
 Dobór pinów wymuszony strappingiem: GPIO15 bezpieczny przy HIGH na boot, GPIO12 wymaga LOW
 na boot (pull-down = zgodne). GPIO2 odrzucony (pull-up→HIGH blokuje wgrywanie przez USB).
@@ -37,7 +37,7 @@ BOM: 1× AO3401A · 1× AO3400A · 2× 100k · 1× 10k · 1× 100R · 3× 100nF 
 
 - Q3: S → `+3V3`, D → `+3V3_NS`, G → `NS_EN_G`
 - R11: `NS_EN_G` ↔ `+3V3` (pull-up → OFF przy Hi-Z)
-- R12 (**10k**): `GPIO15` (J9.15) ↔ `NS_EN_G`
+- R12 (**10k**): `GPIO15` (U1.IO15) ↔ `NS_EN_G`
 - C6 (**100nF**): `NS_EN_G` ↔ `+3V3` (bramka↔źródło, soft-start)
 - C2 (**10µF**): `+3V3_NS` ↔ `GND` — **wprost na pinach V/GND modułu**
 - C3 (**100nF**): `+3V3_NS` ↔ `GND` — **wprost na pinach V/GND modułu**
@@ -51,7 +51,7 @@ C2/C3 lutuj jak najbliżej modułu (lokalny rezerwuar).
 
 - Q4: D → `NFC_GND_SW`, S → `GND`, G → `NFC_EN_G`
 - R13: `NFC_EN_G` ↔ `GND`
-- R14: `GPIO12` (J8.12) ↔ `NFC_EN_G`
+- R14: `GPIO12` (U1.IO12) ↔ `NFC_EN_G`
 - C4: `+3V3` ↔ `NFC_GND_SW`
 - C5: `+3V3` ↔ `NFC_GND_SW`
 - Zmiana netu: **J3.p2 (PN532 GND) `GND` → `NFC_GND_SW`** (p1 zostaje `+3V3`)

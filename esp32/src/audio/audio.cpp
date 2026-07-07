@@ -411,6 +411,24 @@ static void ensureLocalTransport() {
     LOGI("[AUDIO] NS/I2S transport ready core=%d\n", xPortGetCoreID());
 }
 
+// Stop the local I2S peripheral and cut NS amplifier power.
+// Sequence per docs/load-switches.md: deinit I2S -> drive data lines LOW -> NS_EN off.
+// Driving the lines LOW is safe for the high-side switch because the module VDD is 0.
+// Callers must ensure nothing is writing to i2s (playback stopped) before calling this.
+static void teardownLocalTransport() {
+    if (localTransportStarted) {
+        i2s.end();
+        localTransportStarted = false;
+    }
+    pinMode(AUDIO_I2S_BCLK, OUTPUT);
+    pinMode(AUDIO_I2S_LRCK, OUTPUT);
+    pinMode(AUDIO_I2S_DOUT, OUTPUT);
+    digitalWrite(AUDIO_I2S_BCLK, LOW);
+    digitalWrite(AUDIO_I2S_LRCK, LOW);
+    digitalWrite(AUDIO_I2S_DOUT, LOW);
+    nsPowerOff();
+}
+
 static bool parseBtMac(const char* text, esp_bd_addr_t out) {
     if (!text || strlen(text) != 17) return false;
 
@@ -777,16 +795,8 @@ void audioDeleteTaskForSleep() {
     }
     if (localTransportStarted) {
         decoderStream.end();
-        i2s.end();
-        localTransportStarted = false;
     }
-    pinMode(AUDIO_I2S_BCLK, OUTPUT);
-    pinMode(AUDIO_I2S_LRCK, OUTPUT);
-    pinMode(AUDIO_I2S_DOUT, OUTPUT);
-    digitalWrite(AUDIO_I2S_BCLK, LOW);
-    digitalWrite(AUDIO_I2S_LRCK, LOW);
-    digitalWrite(AUDIO_I2S_DOUT, LOW);
-    nsPowerOff();
+    teardownLocalTransport();
 }
 
 void audioSetOutputVolumePercent(int percent) {
@@ -801,11 +811,15 @@ void audioSetOutputVolumePercent(int percent) {
 }
 
 bool audioStartBtHeadphonesMode() {
-    ensureLocalTransport();
     if (!ensureBtTransport()) return false;
     btFrameSink.setSink(&btPcmSink);
     selectSink(&btFrameSink, true);
     clearActiveTransport();
+    // Headphones don't use the wired speaker. Audio now flows decoder -> beatTracker -> BT
+    // sink, and the reducer stops playback (StoppingForOutputChange) before this effect
+    // runs, so nothing is writing to i2s. Drop the local I2S transport and cut NS amplifier
+    // power to save battery; audioStopBtHeadphonesMode()'s ensureLocalTransport() restores it.
+    teardownLocalTransport();
     LOGI("[BT] Headphones mode started\n");
     return true;
 }

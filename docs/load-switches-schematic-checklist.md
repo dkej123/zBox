@@ -12,7 +12,11 @@ Mechaniczna lista do wklepania w `hardware/pcb/kicad/zbox.kicad_sch`. Bez step-u
 | `NFC_GND_SW` | masa modułu PN532 za tranzystorem Q4 (przełączana) |
 | `NFC_EN_G` | bramka Q4 |
 
-Istniejące, używane bez zmian: `+3V3`, `GND`, `GPIO15` (J9.15), `GPIO12` (J8.12).
+Istniejące, używane bez zmian: `+3V3`, `GND`, `GPIO15` (U1.IO15, pin 31), `GPIO12` (U1.IO12, pin 12).
+
+> **Uwaga o module ESP.** Ta płytka używa symbolu **Lolin_D32_Pro (U1)** zamiast dawnych headerów J8/J9.
+> GPIO15 = pin `IO15` (nr 31), GPIO12 = pin `IO12` (nr 12) na U1. Oba piny są domyślnie gołe —
+> R12/R14 podpina się przez label `GPIO15`/`GPIO12` postawiony wprost na tych pinach.
 
 ## 1. Elementy do dodania
 
@@ -46,7 +50,7 @@ Oba: **pin1 = G, pin2 = S, pin3 = D.**
 | Q3 pin3 (D) | `+3V3_NS` |
 | Q3 pin1 (G) | `NS_EN_G` |
 | R11 | `NS_EN_G` ↔ `+3V3` |
-| R12 (10k) | `GPIO15` (J9.15) ↔ `NS_EN_G` |
+| R12 (10k) | `GPIO15` (U1.IO15) ↔ `NS_EN_G` |
 | C6 (100nF) | `NS_EN_G` ↔ `+3V3` |
 | C2 (10µF) | `+3V3_NS` (**+**) ↔ `GND` (**–**) |
 | C3 (100nF) | `+3V3_NS` ↔ `GND` |
@@ -59,7 +63,7 @@ Oba: **pin1 = G, pin2 = S, pin3 = D.**
 | Q4 pin2 (S) | `GND` |
 | Q4 pin1 (G) | `NFC_EN_G` |
 | R13 | `NFC_EN_G` ↔ `GND` |
-| R14 (100R) | `GPIO12` (J8.12) ↔ `NFC_EN_G` |
+| R14 (100R) | `GPIO12` (U1.IO12) ↔ `NFC_EN_G` |
 | C4 (10µF) | `+3V3` (**+**) ↔ `NFC_GND_SW` (**–**) |
 | C5 (100nF) | `+3V3` ↔ `NFC_GND_SW` |
 
@@ -76,6 +80,6 @@ Nie zapomnij przepiąć zasilania modułów — inaczej switche nic nie robią:
 - `NFC_GND_SW` łączy: Q4.D, C4–, C5, GND PN532 — i **nic** poza tym (żadnego `GND`).
 - `NS_EN_G` łączy tylko: Q3.G, R11, R12, C6.
 - `NFC_EN_G` łączy tylko: Q4.G, R13, R14.
-- Bramki wyjściowe: `GPIO15`→R12, `GPIO12`→R14 (nie wprost do bramki).
+- Bramki wyjściowe: `GPIO15` (U1.IO15)→R12, `GPIO12` (U1.IO12)→R14 (nie wprost do bramki).
 - Elektrolity: C2 **+** na `+3V3_NS`, C4 **+** na `+3V3`.
 - ERC bez „unconnected"/„conflict" na nowych netach.

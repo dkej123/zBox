@@ -2,11 +2,15 @@
 
 ![zBox hero](assets/photos/zbox-hero.jpg)
 
-zBox is a custom offline NFC audio box I built for my daughter. It combines an ESP32, local SD card playback, a Raspberry Pi-hosted admin portal, LED effects, and a 3D-printed enclosure into a durable player that works with NFC cards.
+zBox is a custom offline NFC audio box I built for my daughter: an ESP32 plays audio from an
+SD card when an NFC card is presented, drives a WS2812B light matrix, and is managed from a
+small Raspberry Pi-hosted web admin portal. Wi-Fi is used only for sync and maintenance, not
+for playback.
 
-This repository is the full build source for the project: firmware, backend, web admin, PCB design files, and the project documentation needed to rebuild it or adapt it for a similar box. The device plays audio stored on its SD card after an NFC tag is presented, and Wi-Fi is only used for sync and maintenance.
-
-The box itself is built around a 3D-printed shell and custom electronics. This repository focuses on the complete hardware and software stack used in the build, from the ESP32 firmware and server to the PCB sources and operating notes. Mechanical exports such as the Fusion 360 STEP model live in `hardware/cad/fusion360/step/`.
+This repository is the complete build source — firmware, backend, web admin, KiCad PCB
+sources, and docs — so you can rebuild the box or adapt it. It is written to be buildable by
+someone who is not an electronics expert: buy the parts, solder them per the schematic, flash,
+and use the portal. Mechanical exports (Fusion 360 STEP) live in `hardware/cad/fusion360/step/`.
 
 ## Project gallery
 
@@ -25,58 +29,70 @@ The box itself is built around a 3D-printed shell and custom electronics. This r
 ```text
 .
 ├── docs/                   Project documentation
-├── esp32/                  ESP32 firmware (PlatformIO)
-├── server/                 FastAPI backend and web admin UI
-├── web/                    Static admin portal
-├── hardware/               PCB, KiCad, Gerbers, and CAD exports
-├── assets/                 Project photos and media used in docs
-├── scripts/                Utility scripts
+├── esp32/                  ESP32 firmware (PlatformIO): playback, NFC, LEDs, audio, sync
+├── server/                 FastAPI backend + admin API (SQLite, sync logic)
+├── web/                    Static admin portal served by the backend
+├── hardware/pcb/kicad/     KiCad schematic and PCB sources
+├── hardware/pcb/gerbers/   Manufacturing outputs
+├── hardware/cad/fusion360/ Mechanical CAD exports (STEP)
+├── assets/photos/          Images used in this README
 ├── Dockerfile
 └── docker-compose.yml
 ```
 
-## Project split
+## Hardware overview
 
-- `esp32/` contains the offline playback firmware, Bluetooth audio pipeline, NFC handling, LED logic, and Sync Mode service flow.
-- `server/` contains the FastAPI backend, SQLite integration, sync logic, and admin API.
-- `web/` contains the static admin portal served by the backend.
-- `hardware/pcb/kicad/` contains the PCB and schematic sources for the hardware build.
-- `hardware/pcb/gerbers/` contains manufacturing outputs.
-- `hardware/cad/fusion360/step/` contains exported mechanical CAD files such as STEP models.
-- `assets/photos/` contains the product images used in this README.
+```text
+NFC card ──▶ PN532 reader ──▶ ESP32 Lolin D32 Pro
+                                 ├── SD card (local audio + tag mappings)
+                                 ├── WS2812B LED matrix
+                                 ├── buttons A / B / C / D
+                                 ├── I2S ──▶ NS4168 amplifier ──▶ speaker   (default output)
+                                 ├── Bluetooth A2DP ──▶ headphones          (optional, on demand)
+                                 └── Wi-Fi ── sync / diagnostics only
+```
+
+The device is offline-first: audio and mappings live on the SD card. By default sound comes
+out of the wired NS4168 amplifier; Bluetooth headphones are an optional mode you switch on
+with a button. To save battery, the amplifier, NFC reader, and LED supply are each switched
+off in deep sleep by a small transistor.
 
 ## What to buy
 
-If you want to build the current hardware revision, this is the practical shopping list. The various `PAD_*` items in KiCad are just solder pads for wires, not parts you need to buy.
+Practical shopping list for the current board revision. The `PAD_*` items in KiCad are just
+solder pads for wires, not parts you buy. If you manufacture the board, treat the KiCad
+schematic as the authoritative bill of materials.
+
+**Boards and modules**
 
 - `1x` ESP32 Lolin D32 Pro
 - `1x` PN532 NFC module that supports SPI mode
-- `1x` MT3608 step-up module
+- `1x` NS4168 I2S audio amplifier module
+- `1x` speaker driver for the NS4168 output (e.g. reused JBL driver, or any small 4–8 Ω driver that fits your holder)
+- `1x` MT3608 step-up module (boosts the battery rail to 5 V for the LEDs)
 - `1x` USB-C receptacle `GCT USB4085` or a compatible `USB 2.0 14-pin` footprint match
-- `1x` P-channel MOSFET `AO3415A` in `SOT-23`
-- `1x` NPN transistor `BC547` in `TO-92`
-- `1x` electrolytic capacitor `470uF`
-- `2x` resistors `5.1k`
-- `1x` resistor `2.2k`
-- `1x` resistor `10k`
-- `1x` resistor `22k`
-- `1x` resistor `100k`
 - `1x` WS2812B LED strip or panel for the front light matrix
-- `4x` momentary tactile buttons for `A`, `B`, `C`, and `D` — `12 × 12 × 7.3 mm`, 4-pin TACT switches with colored caps (e.g. MSALAMON kit or any equivalent 12 × 12 × 7.3 mm TACT switch)
+- `4x` momentary tactile buttons for `A`, `B`, `C`, `D` — `12 × 12 × 7.3 mm` 4-pin TACT switches with colored caps (e.g. MSALAMON kit or any equivalent)
 - `1x` LiPo battery, currently `Akyga LP805080 3.7V / 4000mAh` with `JST 2-pin` connector
-  This is the battery used in my build. Pack size: `8 mm` thick, `50 mm` wide, `80 mm` high. If you swap it for another pack, check the physical dimensions against the enclosure first.
-- `1x` Bluetooth speaker, currently `JBL Go 2`
+  Pack size: `8 mm` thick × `50 mm` wide × `80 mm` high. If you swap it, check the size against the enclosure first.
+- Optional: any Bluetooth headphones or speaker for the on-demand BT mode (see [Bluetooth headphones](#bluetooth-headphones-optional))
+
+**Discrete components** (values from the schematic BOM)
+
+- `3x` MOSFET in `SOT-23`: `1x AO3415A` (P, LED supply switch), `1x AO3401A` (P, amplifier switch), `1x AO3400A` (N, NFC switch)
+- Resistors: `2x 5.1k`, `3x 10k`, `3x 100k`, `1x 100R`
+- Capacitors: `1x 470uF` electrolytic, `2x 10uF` electrolytic, `3x 100nF` ceramic
 - hookup wire for all off-board connections
 
-You will also need the non-electronic build parts:
+**Non-electronic parts**
 
 - 3D-printed enclosure parts from the project CAD
-- speaker holder inserts matching the audio setup you choose
-- screws or other mounting hardware that fit your chosen assembly method
+- speaker holder insert matching your driver
+- M3 heat-set inserts and M3/M4 screws (see [Printing the enclosure](#printing-the-enclosure))
 
 ## Build cost
 
-This is what I spent building one unit. Prices reflect individual-quantity purchases — buying components in bulk would bring the per-unit cost down.
+What one unit cost me at individual-quantity prices. Buying in bulk lowers the per-unit cost.
 
 | Part | Cost |
 |------|------|
@@ -84,52 +100,47 @@ This is what I spent building one unit. Prices reflect individual-quantity purch
 | ESP32 Lolin D32 Pro | $15 |
 | LiPo battery | $10 |
 | Tactile buttons | $1 |
-| Electronic components (resistors, caps, MOSFET, etc.) | ~$5–10 |
+| NS4168 amplifier + speaker driver | ~$3–8 |
+| Other components (MOSFETs, resistors, caps, step-up, USB-C) | ~$5–10 |
+| Bluetooth headphones / speaker (optional) | — |
 | 3D-printed enclosure filament | — |
-| Bluetooth speaker (JBL Go 2) | had it at home |
-| **Total (without speaker and filament)** | **~$36–41** |
-| Enclosure design, prototype prints, and iteration | countless hours |
-| Electrical prototyping and circuit debugging | countless hours |
-| Fixing the low-quality software Claude Code produced | countless hours |
+| **Total (without optional BT device and filament)** | **~$39–49** |
 
-## Hardware overview
-
-```text
-NFC card
-        │
-        ▼
-   PN532 reader
-        │
-        ▼
- ESP32 Lolin D32 Pro
-   ├── SD card with local audio
-   ├── WS2812B LED panel
-   ├── buttons A / B / C / D
-   ├── speaker power control
-   └── Wi-Fi for sync and maintenance
-        │
-        ▼
- Bluetooth speaker
-```
-
-The device is offline-first during normal use. Audio and mappings live on the SD card, while Wi-Fi is only used for sync and maintenance.
+The enclosure design, circuit prototyping, and debugging took far more time than money.
 
 ## Audio design notes
 
-For the current build I used a `JBL Go 2` connected over Bluetooth. It was a pragmatic choice: I already had that speaker at home, it was collecting dust, and I wanted the sound quality to stay reasonably good instead of dropping in a very cheap `2 USD` speaker.
+The default audio path is a direct digital one: the ESP32 feeds an `NS4168` I2S amplifier over
+`GPIO32/33/13`, and the amplifier drives the speaker. This keeps the sound integrated in the
+enclosure with no external box.
 
-I originally tried a direct wired path using a `PCM5102A` audio module and a jack connection into that speaker, but I could not get rid of the noise and crackling well enough to be happy with the result. Bluetooth ended up being the cleaner and more reliable solution for this revision.
+I first tried a wired `PCM5102A` DAC into a jack, but could not get rid of the noise and
+crackle. I also ran an earlier revision that streamed to a `JBL Go 2` over Bluetooth; that
+worked but added a whole extra speaker to the mechanical stack. The NS4168 path replaced both.
+Bluetooth is still available as an optional [headphones mode](#bluetooth-headphones-optional).
 
-The long-term plan is to reuse the speaker drivers from the JBL and connect them directly to the ESP32 through an `I2S Audio Amplifier Module NS4168`. The reason for that direction is simple: it should remove the extra Bluetooth speaker from the mechanical stack, give tighter integration with the enclosure, and keep a proper digital audio path from the ESP32 to the amplifier.
+The speaker sits in a holder that slides onto internal rails in the enclosure shell and locks
+in place. Swapping it for a different driver just means printing a new holder — no changes to
+the main shell.
 
-The speaker sits in a dedicated holder that slides onto internal rails built into the enclosure shell. The holder locks into position on those rails, so swapping it out for a different design requires no changes to the shell itself — print a new holder and slide it in. This makes it straightforward to adapt the enclosure for a different speaker body or a directly-wired driver setup without redesigning the main enclosure.
+## Power and sleep
+
+To actually sleep at low current, the board gates power to the heavy peripherals with small
+transistors, all default-off at power-on and in deep sleep:
+
+- **NS4168 amplifier** — high-side P-FET on `NS_EN` (`GPIO15`, active LOW), with a soft-start so it does not brown out the 3V3 rail on power-up.
+- **PN532 NFC reader** — low-side N-FET on `NFC_EN` (`GPIO12`, active HIGH).
+- **LED supply** — the step-up feeding the WS2812B strip is switched on `LED_EN` (`GPIO27`).
+
+Details and the exact circuit are in [`docs/load-switches.md`](docs/load-switches.md) and
+[`docs/hardware.md`](docs/hardware.md).
 
 ## PCB and schematic
 
 > [!CAUTION]
-> The PCB photo in this repository shows an earlier revision. The current schematic already includes corrections that came up after assembling the enclosure. If you are manufacturing a board, use the schematic and Gerbers from this repository — not the photo.
-
-If you want to inspect or modify the hardware design, start here:
+> The PCB photo in this repository shows an earlier revision. The current schematic already
+> includes corrections made after assembling the enclosure. If you are manufacturing a board,
+> use the schematic and Gerbers from this repository — not the photo.
 
 - Schematic: [zbox.kicad_sch](hardware/pcb/kicad/zbox.kicad_sch)
 - PCB layout: [zbox.kicad_pcb](hardware/pcb/kicad/zbox.kicad_pcb)
@@ -137,9 +148,11 @@ If you want to inspect or modify the hardware design, start here:
 - Manufacturing outputs: [hardware/pcb/gerbers](hardware/pcb/gerbers)
 - 3D enclosure export: [zbox_clear.step](hardware/cad/fusion360/step/zbox_clear.step)
 
+Wiring and GPIO pin assignments are documented in [`docs/hardware.md`](docs/hardware.md).
+
 ## Printing the enclosure
 
-The STEP model is ready to print. Each part must be printed separately. Print orientation matters:
+The STEP model is ready to print. Each part must be printed separately. Orientation matters:
 
 | Part | Orientation |
 |------|-------------|
@@ -158,150 +171,143 @@ The STEP model is ready to print. Each part must be printed separately. Print or
 
 ### Build notes
 
-- The buttons are soldered onto a protoboard — there is no custom PCB for them. The build uses **12 × 12 × 7.3 mm momentary tactile switches (TACT, 4-pin)** with colored caps, from the MSALAMON kit. Any equivalent 12 × 12 × 7.3 mm TACT switch will fit.
-- The cutout for the button board in the enclosure is not symmetric. This can be corrected in Fusion 360, or you can just account for it when positioning the buttons during soldering. It turned out that way, reason unknown.
+- The buttons are soldered onto a protoboard — there is no custom PCB for them. The build uses **12 × 12 × 7.3 mm momentary tactile switches (TACT, 4-pin)** with colored caps; any equivalent size fits.
+- The cutout for the button board in the enclosure is not symmetric. Correct it in Fusion 360, or just account for it when positioning the buttons during soldering.
 - The button board is attached to the speaker enclosure with hot glue.
 
 ## Hardware disclaimer
 
-I am self-taught when it comes to electronics, so the hardware part of this project may still contain mistakes, weak assumptions, or design issues that I am not aware of.
-
-The current revision works for me in real use, but if you want to reuse, manufacture, or adapt it, treat the design as something to review carefully rather than as a guaranteed reference design. In classic programmer terms: it works on my desk.
+I am self-taught in electronics, so the hardware may contain mistakes or weak assumptions I
+am not aware of. The current revision works for me in real use, but if you reuse or
+manufacture it, review the design carefully rather than trusting it as a reference. In classic
+programmer terms: it works on my desk.
 
 ## First build walkthrough
 
-Complete flow from assembled hardware to first playback.
+From assembled hardware to first playback.
 
-**1. Prepare the SD card**
+**1. Prepare the SD card.** Format it FAT32. 4–16 GB is plenty. Leave it empty — sync creates
+the directory structure on the device automatically.
 
-Format the card as FAT32. A 4–16 GB card is sufficient for most use cases. Leave it empty — the sync operation creates the directory structure on the device automatically.
-
-**2. Configure the firmware**
-
-Open the server configuration and set `ZBOX_IP` in `.env` to the IP address or hostname of the ESP32. The admin portal uses this address to reach the device in Sync Mode.
-
-**3. Flash the firmware**
+**2. Flash the firmware.**
 
 ```bash
 cd esp32
 pio run -t upload
 ```
 
-**4. Start the server**
+Before flashing, set `SERVER_HOST` in [`esp32/src/zbox_config.h`](esp32/src/zbox_config.h) to
+your server's address (the firmware still needs a compile-time server host). See
+[`esp32/README.md`](esp32/README.md).
+
+**3. Start the server.**
 
 ```bash
 docker compose up -d --build
 ```
 
-The admin portal is available at `http://<host>:8000`. Set `ZBOX_IP` in `.env` to the IP address or mDNS hostname of the ESP32 so the admin portal can reach the device for maintenance and sync.
+Copy `.env.example` to `.env` and set `ZBOX_IP` to the ESP32's IP address or mDNS hostname so
+the portal can reach the device. The portal is then available at `http://<host>:8000`.
 
-**5. Pair the Bluetooth speaker**
+**4. Add music and register NFC cards.** See [Adding music and NFC cards](#adding-music-and-nfc-cards).
 
-See [Bluetooth pairing](#bluetooth-pairing) below.
+**5. Sync.** Trigger a sync from the portal with the device on the same Wi-Fi network. LEDs
+show yellow while Wi-Fi is active and a blue progress bar while files transfer. After sync,
+presenting a registered card in Card Mode starts playback out of the NS4168 speaker — no
+Bluetooth pairing needed.
 
-**6. Add music and register NFC tags**
+**6. (Optional) Pair Bluetooth headphones.** See [Bluetooth headphones](#bluetooth-headphones-optional).
 
-See [Adding music and NFC tags](#adding-music-and-nfc-tags) below.
+## Bluetooth headphones (optional)
 
-**7. Sync**
+Playback works out of the wired speaker by default. Bluetooth is an on-demand mode for
+listening on headphones (or an external BT speaker):
 
-Trigger a sync from the admin portal. The device must be on the same Wi-Fi network as the server. LEDs show yellow while Wi-Fi is active and a blue progress bar while files are transferring. After sync completes, presenting a registered NFC tag in Card Mode starts playback.
+1. While the box is awake, **hold `A` for ~2 s** to toggle Bluetooth headphones mode. LEDs show soft blue breathing while it connects.
+2. The device connects to the configured target — default name `zBox Headphones`. You can scan for and pick a different device from the admin portal's **Device** section.
+3. Hold `A` again to switch back to the wired speaker.
 
-## Bluetooth pairing
+The Bluetooth target is stored on the device (NVS). Because the ESP32 does not run Bluetooth
+and Wi-Fi at the same time, headphones mode and Sync Mode are mutually exclusive.
 
-The firmware connects to the Bluetooth speaker by name. The expected name is `JBL GO 2`, defined as `BT_SPEAKER_NAME` in `esp32/src/zbox_config.h`. If your speaker broadcasts a different name, update that constant before flashing.
+## Adding music and NFC cards
 
-To pair on first boot:
+The firmware plays **MP3 files only**.
 
-1. Power on the device (hold `D` for 0.8–2 sec from deep sleep).
-2. Put the speaker into pairing mode.
-3. The device scans for the speaker by name and connects automatically. LEDs show soft blue breathing while waiting.
-4. Once connected, LEDs switch to green idle animation.
-
-The connection is not persisted — the device reconnects by name on every boot.
-
-## Adding music and NFC tags
-
-The firmware plays **MP3 files only**. Other formats are not recognised.
-
-**1. Upload a track**
-
-Open the admin portal at `http://<host>:8000`, go to **Songs**, and upload an MP3 file.
-
-**2. Register an NFC tag**
-
-Go to **Tags**. Power on the ESP32 and hold an NFC tag over the PN532 reader — the portal shows the scanned UID once the device is connected. Assign a name to the tag and link it to a track.
-
-**3. Sync**
-
-After saving the mapping, trigger a sync from the portal. The server pushes the updated mappings and audio files to the device over Wi-Fi. Once sync finishes, presenting the tag in Card Mode starts the assigned track.
+1. **Upload a track.** Open the portal, go to **Songs**, and upload an MP3 (or paste a YouTube URL to import in the background).
+2. **Register a card.** Go to **Tags**. Power on the ESP32 and hold an NFC card over the PN532 reader — the portal shows the scanned UID. Name the card and link it to a track. You can also add a card manually by typing its UID.
+3. **Sync.** Trigger a sync. The server pushes the updated mappings and audio to the device over Wi-Fi. Presenting the card in Card Mode then plays the assigned track.
 
 ## Admin portal
 
-The web admin portal runs at `http://<host>:8000` and covers everything needed to manage the device without touching the firmware.
+The web admin portal runs at `http://<host>:8000` and manages the device without touching the
+firmware.
 
 ### Dashboard
 
 ![Admin dashboard](assets/photos/admin-dashboard.png)
 
-The dashboard shows the live device status at a glance: connection state, number of tracks and NFC tags in the library, battery level, system sounds assignment, and recently added tracks. If any tags have no track assigned, they are flagged here.
+Live device status at a glance: connection state, track and tag counts, battery level, system
+sounds, and recently added tracks. Tags with no track assigned are flagged here.
 
 ### Tracks
 
 ![Tracks](assets/photos/admin-tracks.png)
 
-The Tracks section is the music library. You can add tracks by dragging and dropping an MP3 file, or by pasting a YouTube URL to import audio directly in the background. Each track shows its filename, upload date, and size. A built-in trim editor lets you clip the start and end of a track without re-uploading the file.
-
-**YouTube import.** Paste any YouTube URL into the import panel, give the track a title, and the server downloads and converts the audio in the background. You can keep using the portal while it runs — the track appears in the library once the download is complete.
-
-**Trim editor.** Each track has an in-browser trim editor. Set the start and end points to cut intros, silence, or anything you do not want to play on the device. The trimmed version is what gets synced to the SD card. Tracks with an active trim are marked in the library so you can tell them apart from the originals.
+The music library. Add tracks by dropping an MP3 or pasting a YouTube URL (downloaded and
+converted in the background). A built-in trim editor clips the start/end of a track in the
+browser without re-uploading; the trimmed version is what syncs to the SD card.
 
 ### NFC Tags
 
-The NFC Tags section lists every registered tag with its name, UID, and assigned track. The quick assign panel on the right lets you pick a tag and a track and save the mapping in one click. You can also add a tag manually by typing its name and UID hex string — useful when you want to register a tag without having the physical device connected.
+Lists every registered card with its name, UID, and assigned track. The quick-assign panel
+maps a card to a track in one click, and you can add a card manually by UID.
 
-**Reading a tag UID with an Android phone**
+**Reading a card UID with an Android phone.** The portal has a built-in scanner using the Web
+NFC API — **Chrome on Android only** (on iPhone, enter the UID manually). Open **Tags** in
+Chrome, tap **Scan**, and hold the card to the back of the phone; the UID is pre-filled.
 
-The admin portal has a built-in NFC scanner that uses the Web NFC API — no separate app needed. It works only in **Chrome on Android**; on iPhone you need to enter the UID manually.
-
-To use it directly from the portal:
-
-1. Open the admin portal in Chrome on Android and go to the **Tags** section.
-2. The scan card appears automatically if your browser supports Web NFC.
-3. Tap **Scan** and hold the tag against the back of the phone.
-4. The UID is read and pre-filled into the tag form.
-
-Web NFC requires a secure context (HTTPS or localhost). If the portal is served over plain HTTP on your local network, Chrome will block it. To work around this, enable the following Chrome flag and add your server address to the allowlist:
+Web NFC needs a secure context. If the portal is served over plain HTTP on your LAN, enable
+this Chrome flag and add your server address to the allowlist:
 
 ```
 chrome://flags/#unsafely-treat-insecure-origin-as-secure
 ```
 
-Alternatively, install a standalone NFC reader app (e.g. **NFC Tools** by wakdev), read the UID from there, and paste it into the manual entry field in the portal.
+Alternatively, read the UID with a standalone app (e.g. **NFC Tools** by wakdev) and paste it
+into the manual entry field.
 
 ### System Sounds
 
 ![System Sounds](assets/photos/admin-system-sounds.png)
 
-System Sounds are short audio clips the device plays for specific events: power off, switching to NFC mode, and switching to Music mode. Each slot shows a waveform preview and can be replaced with a custom MP3. The reset button restores the firmware defaults.
+Short clips the device plays for events: power off, switching to Card (NFC) mode, and
+switching to Music mode. Each slot shows a waveform preview and can be replaced with a custom
+MP3; the reset button restores the firmware defaults.
 
 ### Device and sync
 
 ![Device](assets/photos/admin-device.png)
 
-The Device section is the maintenance hub. It shows live connection status, current mode, battery voltage, and SD card usage. The sync button pushes the current library and tag mappings to the device over Wi-Fi. Below that, a file browser shows everything on the SD card, and the diagnostic log viewer lets you stream or download device logs without a serial cable. The connection settings panel at the bottom is where you configure the device IP address for the portal.
+The maintenance hub: live connection status, current mode, battery voltage, and SD usage. The
+sync button pushes the current library and mappings over Wi-Fi. Below it, a file browser shows
+the SD card contents, a log viewer streams device logs without a serial cable, and the
+Bluetooth panel lets you scan for and set the headphones target. The connection settings at
+the bottom configure the device IP for the portal.
 
-## Getting started
+## Getting started (developers)
 
-### Server
+**Server**
 
 ```bash
 docker compose up -d --build
 ```
 
-The server runs in Docker. Runtime data is stored in `./data/`, audio assets in `./music/`, and the admin portal files in `./web/`, all mounted into the container by `docker-compose.yml`.
+Runtime data lives in `./data/`, audio in `./music/`, and portal files in `./web/`, all
+mounted by `docker-compose.yml`. The only required config variable is `ZBOX_IP` (the ESP32's
+IP or mDNS hostname); copy `.env.example` to `.env` and set it before starting.
 
-### ESP32 firmware
+**ESP32 firmware**
 
 ```bash
 cd esp32
@@ -310,81 +316,79 @@ pio run -t upload
 pio device monitor
 ```
 
-The firmware depends on `esp32/lib/ESP32-A2DP`, which is kept as a Git submodule reference to the upstream project.
-
-## Configuration model
-
-- Server runtime configuration is local and installation-specific. The only required variable is `ZBOX_IP` — the IP address or mDNS hostname of the ESP32. Copy `.env.example` to `.env` and set it before starting the container.
-- Wiring and GPIO pin assignments are documented in [`docs/hardware.md`](docs/hardware.md).
+The firmware depends on `esp32/lib/ESP32-A2DP`, kept as a Git submodule.
 
 ## Modes
 
-- **Card Mode**. Default playback mode. The device reacts to NFC tags. Placing a known tag starts the assigned track from the SD card.
-- **Music Mode**. Library playback mode. NFC is ignored and the buttons control pause, previous, and next track inside the local music library.
-- **Light Mode**. Night light mode. Started from deep sleep by holding `D` longer during wake. In this mode `C` and `D` change brightness instead of volume.
-- **Sync Mode**. Service mode used by the admin portal for maintenance, file transfer, log access, and configuration over Wi-Fi.
+- **Card Mode.** Default. The device reacts to NFC cards; placing a known card plays its track.
+- **Music Mode.** Library playback. NFC is ignored and the buttons control pause / previous / next inside the local library.
+- **Light Mode.** Night light, entered from deep sleep by waking with `C` held (see below). `C` and `D` change brightness.
+- **Sync Mode.** Service mode used by the admin portal for maintenance, file transfer, logs, and configuration over Wi-Fi.
 
 ## Button shortcuts
 
-| Button(s) | Action | Hold / Press | Context |
-|-----------|--------|-------------|---------|
-| `D` | **Power on** | hold `0.8–1.6 sec` while waking from deep sleep | from deep sleep |
-| `D` | **Turn night light on** | hold `>= 1.6 sec` while waking from deep sleep | from deep sleep |
-| `C` | **Power off** | hold `2 sec`, then release | Card Mode / Music Mode |
-| `C` | **Emergency deep sleep** | hold `10 sec` | Card Mode / Music Mode |
-| `C` | **Turn night light off** | hold `1 sec` | Light Mode |
-| `B` | **Change mode: Music / Card** | hold `2 sec` | Card Mode / Music Mode |
-| `A + B` | **Sync mode** | hold `2 sec` | Card Mode / Music Mode |
-| `A` | **Battery level** | hold `2 sec` | Card Mode / Music Mode |
-| `A` | **Pause / Resume** | short press | Music Mode |
-| `A` | **Previous song** | double press | Music Mode |
-| `B` | **Next song** | double press | Music Mode |
-| `C` | **Vol −** | short press | Card Mode / Music Mode |
-| `D` | **Vol +** | short press | Card Mode / Music Mode |
-| `C` | **Light −** | short press | Light Mode |
-| `D` | **Light +** | short press | Light Mode |
+Buttons `A`–`D` share one decoder; the action depends on the current mode. Long hold is ~2 s
+unless noted.
+
+**Waking from deep sleep**
+
+| Buttons | Action |
+|---------|--------|
+| Hold `D` (~0.4 s, LED fills) | Power on into Card Mode |
+| Hold `D` + `C` together | Power on into Light Mode (night light) |
+
+**Card / Music Mode**
+
+| Button(s) | Press | Action |
+|-----------|-------|--------|
+| `A` | short | Play / Pause |
+| `A` | double | Previous track (Music Mode) |
+| `A` | long | Toggle Bluetooth headphones on/off |
+| `B` | short | Play / Pause |
+| `B` | double | Next track (Music Mode) |
+| `B` | long | Switch mode: Card ↔ Music |
+| `C` | short | Volume − |
+| `C` | long | Show battery level |
+| `D` | short | Volume + |
+| `D` | long, then release | Go to sleep (LEDs blink red at the threshold) |
+| `A + B` | long | Enter Sync Mode |
+
+**Light Mode**
+
+| Button | Press | Action |
+|--------|-------|--------|
+| `C` | short | Brightness − |
+| `D` | short | Brightness + |
+| `D` | long, then release | Go to sleep |
+
+The device also sleeps on its own after an idle timeout, and forces itself to sleep on
+critically low battery.
 
 ## LED animations
 
-- **Boot progress**. Blue step-by-step progress. Each completed startup stage stays lit, and the current stage blinks three times.
-- **Waiting for Bluetooth**. Soft blue breathing animation while the device is waiting for the speaker connection.
-- **Idle**. Calm green breathing animation when the device is ready but not currently playing.
-- **Playing**. Animated rainbow ring that reacts to audio energy and beats during playback.
-- **Night Light**. Solid warm orange light. Brightness is controlled by `C` and `D`.
-- **Volume**. Temporary white bar showing the current volume level for about one second after `Vol +` or `Vol -`.
-- **Mode change**. Two short flashes. Music Mode uses the Music color, Card Mode uses the Card color.
-- **Sleep ready**. Red blinking animation after holding `C` for two seconds. Releasing `C` at that point enters normal deep sleep.
-- **Sync mode entry**. Purple animated dot pattern shown after `A+B` is held, while the device is preparing to reboot into Sync Mode.
-- **Wi-Fi sync**. Blue blinking after the reboot, while the device is connecting to Wi-Fi and exposing the service endpoints used by the admin portal.
-- **Sync progress**. Blue progress bar that fills while files are transferred to the SD card during sync.
-- **Warning**. Slow amber breathing pulse when a mapping or file is missing.
-- **Shutdown**. Purple sweep animation before the device powers down.
-- **Battery check**. A color-coded bar on the LEDs: blue for high charge, then green, yellow, orange, and red for critical battery.
-
-## Emergency deep sleep
-
-**Emergency deep sleep** is a forced low-power shutdown triggered by holding `C` for `10 sec`.
-
-- It is intended as a fallback if the normal shutdown path is not enough.
-- It skips the regular graceful flow and shuts the device down as directly as possible.
-- It still tries to turn the speaker off first if the hardware status line says the speaker is on.
-
-## Deployment shape
-
-The intended deployment is:
-
-1. Build and run the FastAPI server in Docker on a small Linux host such as a Raspberry Pi.
-2. Flash the ESP32 and configure the server to reach it via `ZBOX_IP`.
-3. Use the web admin portal to manage tracks, NFC mappings, system sounds, and sync operations.
+- **Boot progress.** Blue step-by-step progress; each completed startup stage stays lit and the current one blinks.
+- **Connecting Bluetooth.** Soft blue breathing while connecting to headphones (only in the optional BT mode).
+- **Idle.** Calm green breathing when ready but not playing.
+- **Playing.** Rainbow ring that reacts to audio energy and beats.
+- **Night Light.** Solid warm light; brightness set by `C` and `D`.
+- **Volume.** Temporary white bar for ~1 s after `Vol +` / `Vol −`.
+- **Mode change.** Two short flashes in the mode's color.
+- **Sleep ready.** Red blinking once the sleep hold threshold is reached; release to sleep.
+- **Sync mode entry.** Purple animated dots while preparing to reboot into Sync Mode.
+- **Wi-Fi sync.** Blue blinking while connecting to Wi-Fi, then a blue progress bar while files transfer.
+- **Warning.** Slow amber pulse when a mapping or file is missing.
+- **Shutdown.** Purple sweep before power-down.
+- **Battery check.** Color-coded bar: blue (high) → green → yellow → orange → red (critical).
 
 ## Documentation
 
-- [Server docs](docs/server.md)
 - [Hardware docs](docs/hardware.md)
-- [ESP32 quick start](esp32/README.md)
+- [Load switches / power gating](docs/load-switches.md)
+- [Server API and deployment](docs/server.md)
+- [ESP32 firmware quick start](esp32/README.md) and [architecture](docs/esp32-firmware.md)
 
 ## Known constraints
 
-- Playback is offline-first. The device syncs files and metadata to the SD card instead of streaming during normal use.
-- Bluetooth and Wi-Fi are intentionally not used at the same time on the ESP32 due to memory and radio constraints.
-- The current firmware configuration still requires a compile-time server host value.
+- Playback is offline-first: files and metadata sync to the SD card instead of streaming during normal use.
+- Bluetooth and Wi-Fi are never active at the same time on the ESP32 (memory and radio constraints), so headphones mode and Sync Mode are mutually exclusive.
+- The firmware still requires a compile-time server host in `esp32/src/zbox_config.h`.
