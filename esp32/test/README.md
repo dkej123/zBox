@@ -87,10 +87,10 @@ Tests pure button decoding:
 - single and double click behavior
 - short `BTN_C` / `BTN_D` volume actions
 - long `BTN_A` -> BT headphones mode request
-- long `BTN_D` -> battery preview request
+- long `BTN_C` -> battery preview request
 - long `BTN_B` -> mode toggle
-- long `BTN_C` and emergency hold sleep paths
-- combo `A+B` and `C+D`
+- long `BTN_D` -> normal sleep request
+- combo `A+B` -> Sync Mode request
 - debounce and swallowed-release regressions
 
 ## Scope

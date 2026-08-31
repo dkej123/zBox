@@ -45,6 +45,8 @@ esp32/managed_components/
 .claude/skills/
 .claude/worktrees/
 **/.claude/settings.local.json
+.agents/
+.codex/
 
 # =============================================================================
 # Docker runtime data
@@ -56,6 +58,7 @@ music/
 # Logs
 # =============================================================================
 *.log
+docs/audio_logs.txt
 
 # =============================================================================
 # Hardware / KiCad / routing artifacts

@@ -101,17 +101,15 @@ ISR / NFC task / timer
 
 The device enters deep sleep on:
 - idle timeout (10 minutes without playback)
-- BTN_C 2-second hold (normal sleep with shutdown animation)
-- BTN_C 10-second hold (emergency sleep, skips animation)
+- BTN_D hold for about 1 second (normal sleep with shutdown animation)
+- sustained critical battery voltage
 
 Local audio is the default output on every boot. A long hold on `BTN_A` enables a temporary Bluetooth headphones mode; when the mode exits or the device restarts, output returns to local I2S.
 
 Output volume is owned by zBox in both modes. For BT headphones the firmware scales PCM before it reaches the transport; it does not rely on remote headphone volume support. The legacy NVS key remains `bt_volume` only for backward compatibility with devices already in the field.
 
-Wake from deep sleep requires a hold of BTN_D:
-- release < 800 ms → return to sleep
-- 800–1600 ms hold → normal boot
-- ≥ 1600 ms hold → night-light mode
+Wake from deep sleep requires holding BTN_D for at least 400 ms. Releasing earlier returns to
+deep sleep. Hold BTN_C at the same time to boot into night-light mode.
 
 ## Tests
 
@@ -119,16 +117,8 @@ Native tests cover reducer transitions and state invariants without requiring ha
 
 ```bash
 pio test -e native
+pio test -e native_btndec
 ```
 
-Hardware tests (sleep/wake cycles, BT reconnect, fault injection) are described in [`docs/refactor/10b_test_hardware.md`](refactor/10b_test_hardware.md).
-
-## Further reading
-
-Detailed design documents for the reducer/dispatcher architecture live in [`docs/refactor/`](refactor/):
-
-- [00_overview.md](refactor/00_overview.md) — goals, locked decisions, safety constraints
-- [01_appstate.md](refactor/01_appstate.md) — AppState layout
-- [02_events_effects.md](refactor/02_events_effects.md) — event hierarchy and effects
-- [03_reducer.md](refactor/03_reducer.md) — reducer contract
-- [09_migration_stages.md](refactor/09_migration_stages.md) — staged migration plan with acceptance criteria
+Hardware-only behavior—sleep current, wake cycles, Bluetooth reconnects, radio coexistence,
+and peripheral power sequencing—still requires testing on a physical unit.

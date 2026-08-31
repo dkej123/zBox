@@ -111,6 +111,10 @@ The compose setup mounts:
 - `./data` to `/app/data`
 - `./web` to `/app/web`
 
+Set the ESP32 address from the portal's **Device** page. It is persisted in
+`./data/device_settings.json` and takes precedence over the optional `ZBOX_IP` value from a
+local `.env` file. No firmware-side server address setting is required.
+
 ## Deployment
 
 The default deployment shape is a Linux host running Docker:
