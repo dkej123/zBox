@@ -2,5 +2,5 @@
 	(version 7)
 	(lib (name "lolin_hub") (type "KiCad") (uri "${KIPRJMOD}/lolin_hub.kicad_sym") (options "") (descr ""))
 	(lib (name "zbox") (type "KiCad") (uri "${KIPRJDIR}/zbox.pretty") (options "") (descr ""))
-	(lib (name "lolin_d32_pro_v2") (type "KiCad") (uri "/Users/dkwasniak/Workspace/musicbox/lolin_d32_pro_v2.kicad_sym") (options "") (descr ""))
+	(lib (name "lolin_d32_pro_v2") (type "KiCad") (uri "${KIPRJDIR}/../../../lolin_d32_pro_v2.kicad_sym") (options "") (descr ""))
 )
